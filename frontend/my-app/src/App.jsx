@@ -1,12 +1,10 @@
-import './App.css'
+import React from "react";
+import PDFEditor from "./components/PdfEditor";
 
-function App() {
-
+export default function App() {
   return (
-    <>
-      <p className='text-center'>this i sme</p>
-    </>
-  )
+    <div className="min-h-screen flex items-stretch p-6">
+      <PDFEditor />
+    </div>
+  );
 }
-
-export default App
