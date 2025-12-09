@@ -65,44 +65,6 @@ All signed PDFs saved into `/uploads` with public access:
 
 ```
 
----
-
-## 📂 Project Structure
-
-```
-
-boloforms-sign/
-│
-├── frontend/
-│   │
-│   my-app
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── PDFViewer.jsx
-│   │   │   ├── FieldLayer.jsx
-│   │   │   ├── DraggableField.jsx
-│   │   │   ├── SignaturePadModal.jsx
-│   │   │   ├── SaveButton.jsx
-│   │   │   ├── UploadPdf.jsx
-│   │   │   ├── Toolbar.jsx
-│   │   ├── utils/pdfUtils.js
-│   │   ├── context/EditorContext.jsx
-│   │   ├── App.jsx
-│   │
-│   ├── vite.config.js
-│   └── index.html
-│
-├── backend/
-│   ├── controllers/signPdf.js
-│   ├── models/PdfDocument.js
-│   ├── routes/pdfRoutes.js
-│   ├── utils/hash.js
-│   ├── uploads/
-│   └── server.js
-│
-└── README.md
-
-````
 
 ---
 
