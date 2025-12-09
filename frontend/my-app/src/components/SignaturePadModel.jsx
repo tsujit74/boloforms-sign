@@ -74,7 +74,7 @@ export default function SignaturePadModal({ onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[999999]">
-      <div className="bg-white p-4 rounded shadow-xl w-[90vw] max-w-[900px]">
+      <div className="bg-white p-4 rounded-0 shadow-xl w-[90vw] max-w-[900px]">
         <h3 className="font-semibold mb-2">Draw Your Signature</h3>
 
         <div className="border bg-gray-100" style={{ touchAction: "none" }}>
@@ -89,15 +89,15 @@ export default function SignaturePadModal({ onClose, onSave }) {
         </div>
 
         <div className="flex justify-between mt-3">
-          <button onClick={clear} className="px-3 py-1 bg-gray-200 rounded">
+          <button onClick={clear} className="px-3 py-1 bg-gray-200 rounded-0">
             Clear
           </button>
 
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-3 py-1 bg-gray-200 rounded">
+            <button onClick={onClose} className="px-3 py-1 bg-gray-200 rounded-0">
               Cancel
             </button>
-            <button onClick={save} className="px-3 py-1 bg-blue-600 text-white rounded">
+            <button onClick={save} className="px-3 py-1 bg-blue-600 text-white rounded-0">
               Save
             </button>
           </div>

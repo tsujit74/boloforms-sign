@@ -14,10 +14,10 @@ export default function Toolbar() {
     <div className="
       w-full 
       flex items-center justify-between 
-      px-3 py-1 
+      px-0 py-0 
       bg-white/70 backdrop-blur-sm 
       border border-gray-200 
-      rounded-xl shadow-sm
+      rounded-0 shadow-sm
     ">
       
       <div className="flex items-center gap-3">
@@ -25,7 +25,7 @@ export default function Toolbar() {
         <button
           onClick={zoomOut}
           className="
-            p-1 rounded-lg bg-gray-100 
+            p-2 rounded-0 bg-gray-100 
             hover:bg-gray-200 
             active:scale-95 
             transition
@@ -37,7 +37,7 @@ export default function Toolbar() {
         <button
           onClick={zoomIn}
           className="
-            p-1 rounded-lg bg-gray-100 
+            p-2 rounded-0 bg-gray-100 
             hover:bg-gray-200 
             active:scale-95 
             transition
@@ -46,7 +46,7 @@ export default function Toolbar() {
           <ZoomIn size={18} />
         </button>
 
-        <div className="text-sm font-medium text-gray-700 px-3 py-1 bg-gray-100 rounded-lg">
+        <div className="text-sm font-medium text-gray-700 px-3 py-2 bg-gray-100 rounded-0">
           {(zoom * 100).toFixed(0)}%
         </div>
       </div>
@@ -56,7 +56,7 @@ export default function Toolbar() {
       </div>
 
      
-      <div className="text-xs text-gray-400 pr-1">
+      <div className="text-xs text-gray-400">
         <div className="flex justify-end">
           <SaveButton />
         </div>

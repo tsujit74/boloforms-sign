@@ -41,10 +41,10 @@ export default function UploadPdf() {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all
+        className={`border-2 border-dashed rounded-0 p-4 text-center cursor-pointer transition-all
           ${
             dragging
-              ? "border-blue-500 bg-blue-50"
+              ? "border-gray-500 bg-gray-50"
               : "border-gray-300 bg-white/60 backdrop-blur"
           }
         `}
@@ -60,7 +60,7 @@ export default function UploadPdf() {
         <div className="flex flex-col items-center gap-2">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="w-5 h-5 text-blue-500 opacity-80"
+            className="w-5 h-5 text-gray-900 opacity-80"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth="1.5"

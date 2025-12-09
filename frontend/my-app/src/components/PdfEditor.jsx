@@ -10,7 +10,7 @@ export default function PdfEditor() {
   return (
     <div className="w-full h-full grid grid-cols-[260px_1fr_320px] gap-4">
       
-      <aside className="bg-white rounded-xl shadow p-4 h-[85vh] overflow-y-auto">
+      <aside className="bg-white rounded-0 shadow p-2 h-[85vh] overflow-y-auto">
         <UploadPdf />
         <FieldSidebar />
       </aside>
@@ -19,14 +19,14 @@ export default function PdfEditor() {
       <main className="flex flex-col gap-3">
         <Toolbar />
 
-        <div className="bg-white rounded-xl shadow p-4 h-[78vh] overflow-hidden">
+        <div className="bg-white rounded-0 shadow p-2 h-[78vh] overflow-hidden">
           <PDFViewer />
         </div>
 
         
       </main>
 
-      <aside className="bg-white rounded-xl shadow p-4 h-[85vh] overflow-y-auto">
+      <aside className="bg-white rounded-0 shadow p-2 h-[85vh] overflow-y-auto">
         <PropertiesPanel />
       </aside>
     </div>

@@ -113,7 +113,7 @@ export default function PDFViewer() {
         <div className="flex gap-2">
           <button
             onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
-            className="px-2 py-1 bg-white rounded shadow-sm"
+            className="px-2 py-1 bg-white shadow-sm"
           >
             Prev
           </button>
@@ -122,7 +122,7 @@ export default function PDFViewer() {
             onClick={() =>
               setPageNumber((p) => Math.min(pdfMeta?.pages || 1, p + 1))
             }
-            className="px-2 py-1 bg-white rounded shadow-sm"
+            className="px-2 py-1 bg-white  shadow-sm"
           >
             Next
           </button>
@@ -134,7 +134,7 @@ export default function PDFViewer() {
         className="relative w-full h-full bg-gray-50 flex items-start justify-center overflow-auto pt-2"
       >
         <div className="relative">
-          <canvas ref={canvasRef} className="shadow-lg rounded" />
+          <canvas ref={canvasRef} className="shadow-lg" />
           <FieldLayer />
         </div>
       </div>

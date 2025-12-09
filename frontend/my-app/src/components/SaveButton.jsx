@@ -49,10 +49,8 @@ export default function SaveButton() {
       onClick={loading ? null : handleSave}
       disabled={loading}
       className="px-2 py-1.5 
-        rounded-xl 
         bg-gray-500 
         text-white 
-        shadow-md 
         flex items-center gap-2 
         transition-all 
         active:scale-95 

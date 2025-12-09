@@ -46,7 +46,7 @@ export default function DraggableField({ field }) {
     background: "white",
     pointerEvents: "auto",
     zIndex: selectedId === field.id ? 9999 : 500,
-    border: "2px dashed #3b82f6",
+    border: "2px dashed gray",
     borderRadius: "4px",
     display: "flex",
     alignItems: "center",
@@ -210,7 +210,7 @@ export default function DraggableField({ field }) {
         }
 
         return (
-          <div className="flex flex-col items-center text-xs text-blue-600 gap-1">
+          <div className="flex flex-col items-center text-xs text-gray-600 gap-1">
             <button onClick={() => setShowSignaturePad(true)}>
               Draw Signature
             </button>
@@ -228,7 +228,7 @@ export default function DraggableField({ field }) {
           );
         }
         return (
-          <button className="text-blue-600 text-xs" onClick={uploadImage}>
+          <button className="text-gray-600 text-xs" onClick={uploadImage}>
             Upload Image
           </button>
         );
@@ -273,7 +273,7 @@ export default function DraggableField({ field }) {
 
         <div
           onMouseDown={startResize}
-          className="absolute w-3 h-3 bg-blue-700 right-1 bottom-1 cursor-se-resize rounded-sm"
+          className="absolute w-3 h-3 bg-gray-700 right-1 bottom-1 cursor-se-resize rounded-sm"
         />
       </div>
 
