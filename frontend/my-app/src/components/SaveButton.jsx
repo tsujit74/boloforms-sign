@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useEditor } from "../context/EditorContext";
 import { buildBackendFields, arrayBufferToBase64 } from "../utils/pdfUtils";
 import axios from "axios";
+import { CheckCircle, Loader2 } from "lucide-react";
 
 export default function SaveButton() {
   const { fields, pdfMeta, pdfFile } = useEditor();
@@ -20,22 +21,15 @@ export default function SaveButton() {
       return;
     }
 
-    setLoading(true); // START LOADING
+    setLoading(true);
 
     try {
       const pdfBase64 = arrayBufferToBase64(pdfFile);
       const payloadFields = buildBackendFields(fields, pdfMeta);
 
-      const payload = {
-        pdfBase64,
-        fields: payloadFields,
-      };
-
-      console.log("Sending payload:", payload);
+      const payload = { pdfBase64, fields: payloadFields };
 
       const res = await axios.post(`${API}/api/sign-pdf`, payload);
-
-      console.log("Signed PDF:", res.data);
 
       if (res.data.url) {
         window.open(res.data.url, "_blank");
@@ -47,19 +41,33 @@ export default function SaveButton() {
       alert("Failed to sign PDF. Check console.");
     }
 
-    setLoading(false); // STOP LOADING
+    setLoading(false);
   }
 
   return (
     <button
       onClick={loading ? null : handleSave}
-      className="px-4 py-2 rounded bg-green-600 text-white flex items-center gap-2 disabled:opacity-60"
       disabled={loading}
+      className="px-2 py-1.5 
+        rounded-xl 
+        bg-gray-500 
+        text-white 
+        shadow-md 
+        flex items-center gap-2 
+        transition-all 
+        active:scale-95 
+        hover:bg-gray-700
+        disabled:opacity-60 disabled:cursor-not-allowed"
     >
-      {loading && (
-        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+      {loading ? (
+        <Loader2 className="w-5 h-5 animate-spin" />
+      ) : (
+        <CheckCircle className="w-5 h-5" />
       )}
-      {loading ? "Saving..." : "Save & Sign"}
+
+      <span className="text-sm font-medium">
+        {loading ? "Saving & Signing..." : "Save & Sign"}
+      </span>
     </button>
   );
 }

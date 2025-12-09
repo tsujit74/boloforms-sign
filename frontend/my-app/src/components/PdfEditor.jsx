@@ -1,35 +1,34 @@
 import React from "react";
-import { EditorProvider } from "../context/EditorContext";
-import UploadPdf from "../components/UploadPdf";
-import FieldSidebar from "../components/FieldSidebar";
-import Toolbar from "../components/ToolBar";
-import PDFViewer from "../components/PdfViewer";
-import PropertiesPanel from "../components/PropertiesPanel";
-import SaveButton from "../components/SaveButton";
+import UploadPdf from "./UploadPdf";
+import FieldSidebar from "./FieldSidebar";
+import Toolbar from "./ToolBar";
+import PDFViewer from "./PdfViewer";
+import PropertiesPanel from "./PropertiesPanel";
+import SaveButton from "./SaveButton";
 
 export default function PdfEditor() {
   return (
-    <EditorProvider>
-      <div className="w-full grid grid-cols-[260px_1fr_320px] gap-4">
-        <aside className="bg-white rounded-lg shadow p-4">
-          <UploadPdf />
-          <FieldSidebar />
-        </aside>
+    <div className="w-full h-full grid grid-cols-[260px_1fr_320px] gap-4">
+      
+      <aside className="bg-white rounded-xl shadow p-4 h-[85vh] overflow-y-auto">
+        <UploadPdf />
+        <FieldSidebar />
+      </aside>
 
-        <main className="flex flex-col gap-3">
-          <Toolbar />
-          <div className="bg-white rounded-lg shadow overflow-hidden p-4 h-[80vh]">
-            <PDFViewer />
-          </div>
-          <div className="flex justify-end">
-            <SaveButton />
-          </div>
-        </main>
+     
+      <main className="flex flex-col gap-3">
+        <Toolbar />
 
-        <aside className="bg-white rounded-lg shadow p-4">
-          <PropertiesPanel />
-        </aside>
-      </div>
-    </EditorProvider>
+        <div className="bg-white rounded-xl shadow p-4 h-[78vh] overflow-hidden">
+          <PDFViewer />
+        </div>
+
+        
+      </main>
+
+      <aside className="bg-white rounded-xl shadow p-4 h-[85vh] overflow-y-auto">
+        <PropertiesPanel />
+      </aside>
+    </div>
   );
 }

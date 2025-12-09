@@ -70,7 +70,7 @@ export default function UploadPdf() {
           </svg>
 
           <p className="text-sm text-gray-600">
-            <span className="font-semibold text-blue-600">Click to upload</span>{" "}
+            <span className="font-semibold text-gray-900">Click to upload</span>{" "}
             or drag & drop
           </p>
 
