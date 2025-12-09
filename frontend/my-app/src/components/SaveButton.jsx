@@ -6,6 +6,8 @@ import axios from "axios";
 export default function SaveButton() {
   const { fields, pdfMeta, pdfFile } = useEditor();
 
+  const API = import.meta.env.VITE_BACKEND_URL;
+
   async function handleSave() {
     if (!pdfMeta || !pdfFile) {
       alert("Load PDF first");
@@ -13,13 +15,12 @@ export default function SaveButton() {
     }
 
     if (!(pdfFile instanceof ArrayBuffer) || pdfFile.byteLength === 0) {
-  alert("PDF buffer invalid or empty. Upload again.");
-  return;
-}
+      alert("PDF buffer invalid or empty. Upload again.");
+      return;
+    }
 
-    // Convert ArrayBuffer base64 PDF
+    
     const pdfBase64 = arrayBufferToBase64(pdfFile);
-
     const payloadFields = buildBackendFields(fields, pdfMeta);
 
     const payload = {
@@ -30,10 +31,7 @@ export default function SaveButton() {
     console.log("Sending payload:", payload);
 
     try {
-      const res = await axios.post(
-        "http://localhost:4000/api/sign-pdf",
-        payload
-      );
+      const res = await axios.post(`${API}/api/sign-pdf`, payload);
 
       console.log("Signed PDF:", res.data);
 
