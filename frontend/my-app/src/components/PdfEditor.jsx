@@ -2,7 +2,7 @@ import React from "react";
 import { EditorProvider } from "../context/EditorContext";
 import UploadPdf from "../components/UploadPdf";
 import FieldSidebar from "../components/FieldSidebar";
-import Toolbar from "../components/Toolbar";
+import Toolbar from "../components/ToolBar";
 import PDFViewer from "../components/PdfViewer";
 import PropertiesPanel from "../components/PropertiesPanel";
 import SaveButton from "../components/SaveButton";
