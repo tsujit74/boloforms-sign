@@ -1,13 +1,22 @@
 import React from "react";
 import { useEditor } from "../context/EditorContext";
 
+import {
+  PenLine,
+  Image as ImageIcon,
+  Calendar,
+  CheckSquare,
+  Dot,
+  PenTool,
+} from "lucide-react";
+
 const TOOL_ITEMS = [
-  { type: "signature", label: "Signature" },
-  { type: "text", label: "Text" },
-  { type: "image", label: "Image" },
-  { type: "date", label: "Date" },
-  { type: "checkbox", label: "Checkbox" },
-  { type: "radio", label: "Radio" },
+  { type: "signature", label: "Signature", icon: PenTool },
+  { type: "text", label: "Text", icon: PenLine },
+  { type: "image", label: "Image", icon: ImageIcon },
+  { type: "date", label: "Date", icon: Calendar },
+  { type: "checkbox", label: "Checkbox", icon: CheckSquare },
+  { type: "radio", label: "Radio", icon: Dot },
 ];
 
 export default function FieldSidebar() {
@@ -28,27 +37,37 @@ export default function FieldSidebar() {
         type,
         x: 0.1,
         y: 0.1,
-
         w: type === "signature" ? 0.3 : 0.2,
         h: type === "signature" ? 0.08 : 0.06,
-
         page: 1,
       },
     ]);
   }
 
   return (
-    <div className="mt-4">
-      <h4 className="text-sm font-medium mb-2">Tools</h4>
+    <div className="mt-4 select-none">
+      <h4 className="text-sm font-semibold text-gray-700 mb-3">Tools</h4>
 
       <div className="grid gap-2">
-        {TOOL_ITEMS.map((item) => (
+        {TOOL_ITEMS.map(({ type, label, icon: Icon }) => (
           <button
-            key={item.type}
-            onClick={() => addField(item.type)}
-            className="text-left px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded transition"
+            key={type}
+            onClick={() => addField(type)}
+            className="
+              flex items-center gap-2 
+              px-3 py-2 
+              rounded-xl 
+              bg-white 
+              border border-gray-200 
+              shadow-sm
+              hover:border-blue-500 hover:bg-blue-50
+              transition-all 
+              active:scale-[0.97]
+              text-gray-700
+            "
           >
-            {item.label}
+            <Icon className="w-5 h-5 text-gray-600" />
+            <span className="text-sm">{label}</span>
           </button>
         ))}
       </div>
