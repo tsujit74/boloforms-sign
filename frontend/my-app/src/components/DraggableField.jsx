@@ -1,13 +1,27 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GripVertical, Trash2, XCircle } from "lucide-react";
+import {
+  GripVertical,
+  Trash2,
+  XCircle,
+  PenTool,
+  Keyboard,
+  Upload as UploadIcon,
+  History,
+} from "lucide-react";
 import { useEditor } from "../context/EditorContext";
 import SignaturePadModal from "../components/SignaturePadModel";
 import { pixelsToRelative, relativeToPixels } from "../utils/pdfUtils";
+import { loadSignature, saveSignature } from "../utils/signatureStore";
+import {
+  SIGNATURE_FONTS,
+  loadSignatureFonts,
+  renderTypedSignature,
+} from "../utils/typedSignature";
 
 const GRID = 4;
 const MIN_SIZE = 20;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_DIM = 1200;
 const DRAG_THRESHOLD = 3;
 
@@ -17,12 +31,7 @@ const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
 function isTypingTarget(el) {
   if (!el) return false;
   const tag = el.tagName;
-  return (
-    tag === "INPUT" ||
-    tag === "TEXTAREA" ||
-    tag === "SELECT" ||
-    el.isContentEditable
-  );
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 }
 
 function fileToDataUrl(file) {
@@ -32,10 +41,7 @@ function fileToDataUrl(file) {
 
     img.onload = () => {
       try {
-        const ratio = Math.min(
-          1,
-          MAX_IMAGE_DIM / Math.max(img.width, img.height),
-        );
+        const ratio = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
         const w = Math.max(1, Math.round(img.width * ratio));
         const h = Math.max(1, Math.round(img.height * ratio));
 
@@ -46,9 +52,7 @@ function fileToDataUrl(file) {
 
         const keepAlpha = /png|gif|webp|svg/.test(file.type);
         resolve(
-          keepAlpha
-            ? canvas.toDataURL("image/png")
-            : canvas.toDataURL("image/jpeg", 0.9),
+          keepAlpha ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9)
         );
       } catch (err) {
         reject(err);
@@ -66,6 +70,99 @@ function fileToDataUrl(file) {
   });
 }
 
+function SigChip({ icon: Icon, label, onClick, primary, compact }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={`flex items-center gap-1 rounded-md border font-medium transition active:scale-95 ${
+        compact ? "p-1.5" : "px-2.5 py-1.5 text-xs"
+      } ${
+        primary
+          ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700"
+          : "bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:text-blue-700"
+      }`}
+    >
+      <Icon className={compact ? "w-4 h-4" : "w-3.5 h-3.5"} />
+      {!compact && <span>{label}</span>}
+    </button>
+  );
+}
+
+function TypeSignatureModal({ onClose, onSave }) {
+  const [text, setText] = useState("");
+  const [fontId, setFontId] = useState(SIGNATURE_FONTS[0].id);
+  const [busy, setBusy] = useState(false);
+
+  const font = SIGNATURE_FONTS.find((f) => f.id === fontId) || SIGNATURE_FONTS[0];
+
+  async function apply() {
+    if (!text.trim()) return;
+    setBusy(true);
+    await loadSignatureFonts();
+    const dataUrl = renderTypedSignature(text, font.family);
+    setBusy(false);
+    if (dataUrl) onSave(dataUrl);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[20000] bg-black/40 flex items-center justify-center p-3"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-md rounded-lg shadow-xl p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Type your signature</h3>
+
+        <input
+          autoFocus
+          type="text"
+          value={text}
+          maxLength={40}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && apply()}
+          placeholder="Your full name"
+          className="w-full border border-gray-300 px-3 py-2 text-base outline-none focus:border-blue-500"
+        />
+
+        <div className="mt-3 grid gap-2">
+          {SIGNATURE_FONTS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFontId(f.id)}
+              className={`text-left px-3 py-2 border ${
+                fontId === f.id ? "border-blue-600 bg-blue-50" : "border-gray-200"
+              }`}
+            >
+              <span style={{ fontFamily: f.family, fontSize: 30 }}>
+                {text.trim() || "Your name"}
+              </span>
+              <span className="block text-xs text-gray-400">{f.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200">
+            Cancel
+          </button>
+          <button
+            onClick={apply}
+            disabled={!text.trim() || busy}
+            className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          >
+            {busy ? "Applying..." : "Apply"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DraggableField({ field }) {
   const { pdfMeta, setFields, selectedId, setSelectedId } = useEditor();
 
@@ -75,12 +172,9 @@ function DraggableField({ field }) {
   const dragRef = useRef(null);
 
   const [showSignaturePad, setShowSignaturePad] = useState(false);
-  const [local, setLocal] = useState({
-    x: field.x,
-    y: field.y,
-    w: field.w,
-    h: field.h,
-  });
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [savedSig, setSavedSig] = useState(() => loadSignature());
+  const [local, setLocal] = useState({ x: field.x, y: field.y, w: field.w, h: field.h });
   const localRef = useRef(local);
 
   const selected = selectedId === field.id;
@@ -97,13 +191,20 @@ function DraggableField({ field }) {
     (changes) => {
       setFields((prev) =>
         prev.map((f) =>
-          f.id === field.id
-            ? { ...f, meta: { ...(f.meta || {}), ...changes } }
-            : f,
-        ),
+          f.id === field.id ? { ...f, meta: { ...(f.meta || {}), ...changes } } : f
+        )
       );
     },
-    [field.id, setFields],
+    [field.id, setFields]
+  );
+
+  const applySignature = useCallback(
+    (dataUrl) => {
+      updateMeta({ signatureBase64: dataUrl });
+      saveSignature(dataUrl);
+      setSavedSig(dataUrl);
+    },
+    [updateMeta]
   );
 
   const removeField = useCallback(() => {
@@ -180,16 +281,8 @@ function DraggableField({ field }) {
       left = clamp(snap(left + dx), 0, PDF_W - width);
       top = clamp(snap(top + dy), 0, PDF_H - height);
     } else {
-      width = clamp(
-        snap(width + dx),
-        Math.min(MIN_SIZE, PDF_W - left),
-        PDF_W - left,
-      );
-      height = clamp(
-        snap(height + dy),
-        Math.min(MIN_SIZE, PDF_H - top),
-        PDF_H - top,
-      );
+      width = clamp(snap(width + dx), Math.min(MIN_SIZE, PDF_W - left), PDF_W - left);
+      height = clamp(snap(height + dy), Math.min(MIN_SIZE, PDF_H - top), PDF_H - top);
     }
 
     const rel = pixelsToRelative({ left, top, width, height }, PDF_W, PDF_H);
@@ -208,13 +301,9 @@ function DraggableField({ field }) {
 
     if (d.moved) {
       const next = localRef.current;
-      setFields((prev) =>
-        prev.map((f) => (f.id === field.id ? { ...f, ...next } : f)),
-      );
+      setFields((prev) => prev.map((f) => (f.id === field.id ? { ...f, ...next } : f)));
     }
   }
-
-  // ---------- image / signature upload ----------
 
   function openFilePicker(kind) {
     uploadKindRef.current = kind;
@@ -223,8 +312,8 @@ function DraggableField({ field }) {
 
   async function onFileChosen(e) {
     const file = e.target.files?.[0];
-    e.target.value = ""; // allow picking the same file again
-    if (!file) return; // dialog cancelled
+    e.target.value = "";
+    if (!file) return;
 
     if (!file.type.startsWith("image/")) {
       alert("Please choose an image file.");
@@ -237,23 +326,65 @@ function DraggableField({ field }) {
 
     try {
       const dataUrl = await fileToDataUrl(file);
-      updateMeta(
-        uploadKindRef.current === "signature"
-          ? { signatureBase64: dataUrl }
-          : { imageBase64: dataUrl },
-      );
+      if (uploadKindRef.current === "signature") {
+        applySignature(dataUrl);
+      } else {
+        updateMeta({ imageBase64: dataUrl });
+      }
     } catch (err) {
       console.error(err);
       alert("Could not load this image.");
     }
   }
 
-  // ---------- content ----------
-
   const fontSize = Math.max(10, Math.min(px.height * 0.55, 28));
   const hasImage =
     (field.type === "signature" && meta.signatureBase64) ||
     (field.type === "image" && meta.imageBase64);
+  const isEmptySignature = field.type === "signature" && !meta.signatureBase64;
+
+  function renderSignatureEmpty() {
+    const compact = px.height < 70 || px.width < 230;
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-1 overflow-hidden">
+        {!compact && px.height >= 90 && (
+          <div className="flex items-center gap-1 text-xs font-medium text-blue-700">
+            <PenTool className="w-4 h-4" />
+            Click to sign
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {savedSig && (
+            <SigChip
+              primary
+              compact={compact}
+              icon={History}
+              label="Use saved"
+              onClick={() => updateMeta({ signatureBase64: savedSig })}
+            />
+          )}
+          <SigChip
+            compact={compact}
+            icon={PenTool}
+            label="Draw"
+            onClick={() => setShowSignaturePad(true)}
+          />
+          <SigChip
+            compact={compact}
+            icon={Keyboard}
+            label="Type"
+            onClick={() => setShowTypeModal(true)}
+          />
+          <SigChip
+            compact={compact}
+            icon={UploadIcon}
+            label="Upload"
+            onClick={() => openFilePicker("signature")}
+          />
+        </div>
+      </div>
+    );
+  }
 
   function renderContent() {
     switch (field.type) {
@@ -280,22 +411,7 @@ function DraggableField({ field }) {
             />
           );
         }
-        return (
-          <div className="flex flex-col items-center justify-center gap-1 text-xs text-gray-600">
-            <button
-              className="underline"
-              onClick={() => setShowSignaturePad(true)}
-            >
-              Draw Signature
-            </button>
-            <button
-              className="underline"
-              onClick={() => openFilePicker("signature")}
-            >
-              Upload Signature
-            </button>
-          </div>
-        );
+        return renderSignatureEmpty();
 
       case "image":
         if (meta.imageBase64) {
@@ -309,10 +425,7 @@ function DraggableField({ field }) {
           );
         }
         return (
-          <button
-            className="text-xs text-gray-600 underline"
-            onClick={() => openFilePicker("image")}
-          >
+          <button className="text-xs text-gray-600 underline" onClick={() => openFilePicker("image")}>
             Upload Image
           </button>
         );
@@ -356,12 +469,10 @@ function DraggableField({ field }) {
 
   const clearContent = () =>
     updateMeta(
-      field.type === "signature"
-        ? { signatureBase64: null }
-        : { imageBase64: null },
+      field.type === "signature" ? { signatureBase64: null } : { imageBase64: null }
     );
 
-  const toolbarBelow = px.top < 28;
+  const toolbarBelow = px.top < 48;
 
   return (
     <>
@@ -383,8 +494,16 @@ function DraggableField({ field }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: hasImage ? "transparent" : "rgba(255,255,255,0.92)",
-          border: selected ? "2px solid #2563eb" : "2px dashed #9ca3af",
+          background: hasImage
+            ? "transparent"
+            : isEmptySignature
+            ? "rgba(239,246,255,0.96)"
+            : "rgba(255,255,255,0.92)",
+          border: selected
+            ? "2px solid #2563eb"
+            : isEmptySignature
+            ? "2px dashed #60a5fa"
+            : "2px dashed #9ca3af",
           borderRadius: 4,
           boxSizing: "border-box",
           cursor: dragRef.current ? "grabbing" : "move",
@@ -404,19 +523,11 @@ function DraggableField({ field }) {
               <GripVertical className="w-6 h-6" />
             </div>
             {hasImage && (
-              <button
-                onClick={clearContent}
-                title="Clear"
-                className="p-1 hover:text-yellow-200"
-              >
+              <button onClick={clearContent} title="Clear" className="p-1 hover:text-yellow-200">
                 <XCircle className="w-6 h-6" />
               </button>
             )}
-            <button
-              onClick={removeField}
-              title="Delete field"
-              className="p-1 hover:text-red-200"
-            >
+            <button onClick={removeField} title="Delete field" className="p-1 hover:text-red-200">
               <Trash2 className="w-6 h-6" />
             </button>
           </div>
@@ -444,11 +555,23 @@ function DraggableField({ field }) {
           <SignaturePadModal
             onClose={() => setShowSignaturePad(false)}
             onSave={(base64) => {
-              updateMeta({ signatureBase64: base64 });
+              applySignature(base64);
               setShowSignaturePad(false);
             }}
           />,
-          document.body,
+          document.body
+        )}
+
+      {showTypeModal &&
+        createPortal(
+          <TypeSignatureModal
+            onClose={() => setShowTypeModal(false)}
+            onSave={(dataUrl) => {
+              applySignature(dataUrl);
+              setShowTypeModal(false);
+            }}
+          />,
+          document.body
         )}
     </>
   );
