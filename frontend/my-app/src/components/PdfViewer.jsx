@@ -4,11 +4,13 @@ import workerSrc from "pdfjs-dist/build/pdf.worker.mjs?worker&url";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEditor } from "../context/EditorContext";
 import FieldLayer from "./FieldLayer";
+import { createField, FIELD_MIME } from "../utils/fieldDefaults";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export default function PDFViewer() {
-  const { pdfFile, setPdfMeta, zoom } = useEditor();
+  const { pdfFile, pdfMeta, setPdfMeta, zoom, setFields, setSelectedId } =
+    useEditor();
 
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -19,6 +21,7 @@ export default function PDFViewer() {
   const [pageNumber, setPageNumber] = useState(1);
   const [containerWidth, setContainerWidth] = useState(0);
   const [error, setError] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const totalPages = pdfDoc?.numPages || 0;
 
@@ -46,7 +49,7 @@ export default function PDFViewer() {
             const page = await pdf.getPage(i + 1);
             const v = page.getViewport({ scale: 1 });
             return { width: v.width, height: v.height };
-          })
+          }),
         );
         if (cancelled) return;
 
@@ -57,7 +60,7 @@ export default function PDFViewer() {
         if (cancelled) return;
         console.error("PDF load error:", err);
         setError(
-          "Could not open this PDF. The file may be corrupted or password protected."
+          "Could not open this PDF. The file may be corrupted or password protected.",
         );
       }
     })();
@@ -77,7 +80,7 @@ export default function PDFViewer() {
       const padding = window.innerWidth < 640 ? 8 : 24;
       const w = Math.floor(entry.contentRect.width) - padding;
       setContainerWidth((prev) =>
-        Math.abs(prev - w) > 1 ? Math.max(w, 100) : prev
+        Math.abs(prev - w) > 1 ? Math.max(w, 100) : prev,
       );
     });
     ro.observe(el);
@@ -140,6 +143,34 @@ export default function PDFViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfDoc, pageNumber, zoom, containerWidth, pagesMeta]);
 
+  function handleDragOver(e) {
+    if (!e.dataTransfer.types.includes(FIELD_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!dragOver) setDragOver(true);
+  }
+
+  function handleDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false);
+  }
+
+  function handleDrop(e) {
+    setDragOver(false);
+    const type = e.dataTransfer.getData(FIELD_MIME);
+    if (!type || !pdfMeta) return;
+    e.preventDefault();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / rect.height,
+    };
+
+    const field = createField(type, pdfMeta.currentPage || 1, pos);
+    setFields((prev) => [...prev, field]);
+    setSelectedId?.(field.id);
+  }
+
   const goTo = (p) => setPageNumber(Math.min(Math.max(1, p), totalPages || 1));
 
   if (!pdfFile) {
@@ -189,7 +220,14 @@ export default function PDFViewer() {
         ref={containerRef}
         className="relative w-full flex-1 min-h-0 bg-gray-50 flex items-start overflow-auto overscroll-contain pt-2"
       >
-        <div className="relative shrink-0 mx-auto">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`relative shrink-0 mx-auto transition-shadow ${
+            dragOver ? "ring-4 ring-blue-400 ring-offset-2" : ""
+          }`}
+        >
           <canvas ref={canvasRef} className="block shadow-lg" />
           <FieldLayer />
         </div>
