@@ -1,5 +1,6 @@
-const { PDFDocument } = require("pdf-lib");
+const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 const fs = require("fs");
+const fsp = require("fs/promises");
 const path = require("path");
 const { sha256 } = require("../utils/hash");
 const PdfDocumentModel = require("../models/PdfDocument");
@@ -8,6 +9,166 @@ const UPLOAD_DIR =
   process.env.UPLOAD_DIR || path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+const MAX_FIELDS = 500;
+const INK = rgb(0, 0, 0);
+
+function parseDataUrl(dataUrl) {
+  if (typeof dataUrl !== "string") return null;
+  const m = dataUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
+  if (!m) return null;
+  return { mime: m[1].toLowerCase(), buffer: Buffer.from(m[2], "base64") };
+}
+
+async function embedImage(pdfDoc, dataUrl) {
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed || parsed.buffer.length === 0) return null;
+
+  const isJpeg = parsed.mime.includes("jpeg") || parsed.mime.includes("jpg");
+  const first = isJpeg ? "embedJpg" : "embedPng";
+  const second = isJpeg ? "embedPng" : "embedJpg";
+
+  try {
+    return await pdfDoc[first](parsed.buffer);
+  } catch {
+    try {
+      return await pdfDoc[second](parsed.buffer);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function getBox(f) {
+  const p = f.pdfPoints;
+  if (!p) return null;
+  const { x, y, w, h } = p;
+  if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+  return { x, y, w, h };
+}
+
+function drawImageContain(page, img, box) {
+  const { width: imgW, height: imgH } = img.scale(1);
+  const scale = Math.min(box.w / imgW, box.h / imgH);
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+
+  page.drawImage(img, {
+    x: box.x + (box.w - drawW) / 2,
+    y: box.y + (box.h - drawH) / 2,
+    width: drawW,
+    height: drawH,
+  });
+}
+
+function formatDate(value, format = "DD/MM/YYYY") {
+  const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+
+  const [, yyyy, mm, dd] = m;
+  const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+  if (
+    d.getUTCFullYear() !== +yyyy ||
+    d.getUTCMonth() !== +mm - 1 ||
+    d.getUTCDate() !== +dd
+  ) {
+    return null;
+  }
+
+  return format.replace("YYYY", yyyy).replace("MM", mm).replace("DD", dd);
+}
+
+function safeText(font, text) {
+  const clean = String(text).replace(/[\r\n\t]+/g, " ");
+  try {
+    font.widthOfTextAtSize(clean, 12);
+    return clean;
+  } catch {
+    return clean
+      .split("")
+      .map((ch) => {
+        try {
+          font.widthOfTextAtSize(ch, 12);
+          return ch;
+        } catch {
+          return "?";
+        }
+      })
+      .join("");
+  }
+}
+
+function drawTextInBox(page, font, rawText, box) {
+  const text = safeText(font, rawText);
+  if (!text.trim()) return;
+
+  let size = Math.max(6, Math.min(24, Math.floor(box.h * 0.7)));
+  const maxWidth = box.w - 4;
+
+  while (size > 6 && font.widthOfTextAtSize(text, size) > maxWidth) {
+    size -= 0.5;
+  }
+
+  const textHeight = font.heightAtSize(size, { descender: false });
+
+  page.drawText(text, {
+    x: box.x + 2,
+    y: box.y + (box.h - textHeight) / 2,
+    size,
+    font,
+    color: INK,
+    maxWidth,
+  });
+}
+
+function drawCheckbox(page, box, checked) {
+  const side = Math.min(box.w, box.h);
+  const x = box.x + (box.w - side) / 2;
+  const y = box.y + (box.h - side) / 2;
+
+  page.drawRectangle({
+    x,
+    y,
+    width: side,
+    height: side,
+    borderColor: INK,
+    borderWidth: 1,
+  });
+
+  if (checked) {
+    const t = Math.max(1.2, side * 0.1);
+    page.drawLine({
+      start: { x: x + side * 0.2, y: y + side * 0.5 },
+      end: { x: x + side * 0.42, y: y + side * 0.25 },
+      thickness: t,
+      color: INK,
+    });
+    page.drawLine({
+      start: { x: x + side * 0.42, y: y + side * 0.25 },
+      end: { x: x + side * 0.82, y: y + side * 0.78 },
+      thickness: t,
+      color: INK,
+    });
+  }
+}
+
+function drawRadio(page, box, checked) {
+  const d = Math.min(box.w, box.h);
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+
+  page.drawCircle({
+    x: cx,
+    y: cy,
+    size: d / 2,
+    borderColor: INK,
+    borderWidth: 1,
+  });
+
+  if (checked) {
+    page.drawCircle({ x: cx, y: cy, size: d * 0.22, color: INK });
+  }
+}
+
 async function signPdf(req, res) {
   try {
     const { pdfBase64, pdfId, fields } = req.body;
@@ -15,126 +176,100 @@ async function signPdf(req, res) {
     if (!pdfBase64 && !pdfId) {
       return res.status(400).json({ error: "Provide pdfBase64 or pdfId" });
     }
+    if (!Array.isArray(fields)) {
+      return res.status(400).json({ error: "fields must be an array" });
+    }
+    if (fields.length > MAX_FIELDS) {
+      return res
+        .status(400)
+        .json({ error: `Too many fields (max ${MAX_FIELDS})` });
+    }
 
-    // load original PDF buffer
     let originalBuffer;
     if (pdfBase64) {
       const matches = pdfBase64.match(/^data:application\/pdf;base64,(.*)$/);
-      const base64 = matches ? matches[1] : pdfBase64;
-      originalBuffer = Buffer.from(base64, "base64");
+      originalBuffer = Buffer.from(matches ? matches[1] : pdfBase64, "base64");
     } else {
-      const filePath = path.join(UPLOAD_DIR, pdfId);
-      originalBuffer = fs.readFileSync(filePath);
+      const filePath = path.join(UPLOAD_DIR, path.basename(String(pdfId)));
+      try {
+        originalBuffer = await fsp.readFile(filePath);
+      } catch {
+        return res.status(404).json({ error: "PDF not found" });
+      }
     }
 
     const originalHash = sha256(originalBuffer);
-    const pdfDoc = await PDFDocument.load(originalBuffer);
+
+    let pdfDoc;
+    try {
+      pdfDoc = await PDFDocument.load(originalBuffer);
+    } catch {
+      return res.status(400).json({ error: "Invalid or encrypted PDF" });
+    }
+
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     for (const f of fields) {
-      const pageIndex = Math.max(0, (f.page || 1) - 1);
-      const pages = pdfDoc.getPages();
-      if (!pages[pageIndex]) continue;
-      const page = pages[pageIndex];
-      if (f.type === "signature" && f.meta?.signatureBase64) {
-        const imageBase64 = f.meta.signatureBase64.split(",")[1];
-        const sigImage = await pdfDoc
-          .embedPng(Buffer.from(imageBase64, "base64"))
-          .catch(async () => {
-            return pdfDoc.embedJpg(Buffer.from(imageBase64, "base64"));
-          });
+      try {
+        const page = pages[Math.max(0, (f.page || 1) - 1)];
+        const box = getBox(f);
+        if (!page || !box) continue;
 
-        const boxW = f.pdfPoints.w;
-        const boxH = f.pdfPoints.h;
-        const { width: imgW, height: imgH } = sigImage.scale(1);
-        const imgAspect = imgW / imgH;
-        const boxAspect = boxW / boxH;
-        let drawW, drawH;
-        if (imgAspect > boxAspect) {
-          drawW = boxW;
-          drawH = boxW / imgAspect;
-        } else {
-          drawH = boxH;
-          drawW = boxH * imgAspect;
+        const meta = f.meta || {};
+
+        switch (f.type) {
+          case "signature": {
+            if (!meta.signatureBase64) break;
+            const img = await embedImage(pdfDoc, meta.signatureBase64);
+            if (img) drawImageContain(page, img, box);
+            break;
+          }
+
+          case "image": {
+            if (!meta.imageBase64) break;
+            const img = await embedImage(pdfDoc, meta.imageBase64);
+            if (img) drawImageContain(page, img, box);
+            break;
+          }
+
+          case "text": {
+            if (meta.text) drawTextInBox(page, font, meta.text, box);
+            break;
+          }
+
+          case "date": {
+            const formatted = formatDate(
+              meta.date,
+              meta.dateFormat || "DD/MM/YYYY",
+            );
+            if (formatted) drawTextInBox(page, font, formatted, box);
+            break;
+          }
+
+          case "checkbox": {
+            drawCheckbox(page, box, !!meta.checked);
+            break;
+          }
+
+          case "radio": {
+            drawRadio(page, box, !!meta.checked);
+            break;
+          }
+
+          default:
+            break;
         }
-        const offsetX = f.pdfPoints.x + (boxW - drawW) / 2;
-        const offsetY = f.pdfPoints.y + (boxH - drawH) / 2;
-
-        page.drawImage(sigImage, {
-          x: offsetX,
-          y: offsetY,
-          width: drawW,
-          height: drawH,
-        });
-      }
-
-      if (f.type === "image" && f.meta?.imageBase64) {
-        const imageBase64 = f.meta.imageBase64.split(",")[1];
-        const img = await pdfDoc
-          .embedJpg(Buffer.from(imageBase64, "base64"))
-          .catch(async () => {
-            return pdfDoc.embedPng(Buffer.from(imageBase64, "base64"));
-          });
-
-        const boxW = f.pdfPoints.w;
-        const boxH = f.pdfPoints.h;
-        const { width: imgW, height: imgH } = img.scale(1);
-        const imgAspect = imgW / imgH;
-        const boxAspect = boxW / boxH;
-        let drawW, drawH;
-        if (imgAspect > boxAspect) {
-          drawW = boxW;
-          drawH = boxW / imgAspect;
-        } else {
-          drawH = boxH;
-          drawW = boxH * imgAspect;
-        }
-        const offsetX = f.pdfPoints.x + (boxW - drawW) / 2;
-        const offsetY = f.pdfPoints.y + (boxH - drawH) / 2;
-        page.drawImage(img, {
-          x: offsetX,
-          y: offsetY,
-          width: drawW,
-          height: drawH,
-        });
-      }
-
-      if (f.type === "text" && f.meta?.text) {
-        const { x, y } = f.pdfPoints;
-        const fontSize = Math.max(
-          8,
-          Math.min(24, Math.floor(f.pdfPoints.h * 0.8))
-        );
-        const helvetica = await pdfDoc
-          .embedFont(PDFDocument.PDFName ? undefined : "Helvetica")
-          .catch(() => null);
-
-        page.drawText(String(f.meta.text), {
-          x: f.pdfPoints.x,
-          y: f.pdfPoints.y + (f.pdfPoints.h - fontSize) / 2,
-          size: fontSize,
-        });
-      }
-
-      if (f.type === "checkbox") {
-        if (f.meta?.checked) {
-          page.drawRectangle({
-            x: f.pdfPoints.x + f.pdfPoints.w * 0.15,
-            y: f.pdfPoints.y + f.pdfPoints.h * 0.15,
-            width: f.pdfPoints.w * 0.7,
-            height: f.pdfPoints.h * 0.7,
-            color: undefined,
-          });
-        }
+      } catch (fieldErr) {
+        console.warn(`Skipped field ${f?.id} (${f?.type}):`, fieldErr.message);
       }
     }
 
-    const finalPdfBytes = await pdfDoc.save();
-
+    const finalPdfBytes = Buffer.from(await pdfDoc.save());
     const signedHash = sha256(finalPdfBytes);
 
-    const filename = `signed_${Date.now()}.pdf`;
-    const outPath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(outPath, finalPdfBytes);
+    const filename = `signed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`;
+    await fsp.writeFile(path.join(UPLOAD_DIR, filename), finalPdfBytes);
 
     const doc = new PdfDocumentModel({
       pdfId: pdfId || filename,
@@ -146,9 +281,7 @@ async function signPdf(req, res) {
     });
     await doc.save();
 
-    const fileUrl = `${
-      process.env.BASE_URL || "http://localhost:4000"
-    }/files/${filename}`;
+    const fileUrl = `${process.env.BASE_URL || "http://localhost:4000"}/files/${filename}`;
     res.json({ url: fileUrl, docId: doc._id });
   } catch (err) {
     console.error("signPdf error:", err);

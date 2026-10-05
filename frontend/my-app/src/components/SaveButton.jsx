@@ -30,6 +30,7 @@ export default function SaveButton() {
       const payload = { pdfBase64, fields: payloadFields };
 
       const res = await axios.post(`${API}/api/sign-pdf`, payload);
+      console.log("signPdf NEW VERSION loaded");
 
       if (res.data.url) {
         window.open(res.data.url, "_blank");
