@@ -1,13 +1,14 @@
 import React, { useRef, useEffect, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.mjs?worker&url";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEditor } from "../context/EditorContext";
 import FieldLayer from "./FieldLayer";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export default function PDFViewer() {
-  const { pdfFile, pdfMeta, setPdfMeta, zoom } = useEditor();
+  const { pdfFile, setPdfMeta, zoom } = useEditor();
 
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -21,7 +22,6 @@ export default function PDFViewer() {
 
   const totalPages = pdfDoc?.numPages || 0;
 
-  // 1) Load the PDF ONLY when the file changes
   useEffect(() => {
     if (!pdfFile) {
       setPdfDoc(null);
@@ -33,7 +33,6 @@ export default function PDFViewer() {
     }
 
     let cancelled = false;
-    // slice(0): pdf.js transfers the buffer to its worker, so give it a copy
     const task = pdfjsLib.getDocument({ data: pdfFile.slice(0) });
 
     (async () => {
@@ -42,7 +41,6 @@ export default function PDFViewer() {
         const pdf = await task.promise;
         if (cancelled) return;
 
-        // page sizes, loaded in parallel (pages can have different sizes)
         const metas = await Promise.all(
           Array.from({ length: pdf.numPages }, async (_, i) => {
             const page = await pdf.getPage(i + 1);
@@ -58,31 +56,34 @@ export default function PDFViewer() {
       } catch (err) {
         if (cancelled) return;
         console.error("PDF load error:", err);
-        setError("Could not open this PDF. The file may be corrupted or password protected.");
+        setError(
+          "Could not open this PDF. The file may be corrupted or password protected."
+        );
       }
     })();
 
     return () => {
       cancelled = true;
-      task.destroy(); // also frees the document and worker memory
+      task.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfFile]);
 
-  // 2) Track container width (window resize, sidebar changes)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const ro = new ResizeObserver(([entry]) => {
-      const w = Math.floor(entry.contentRect.width) - 16; // room for padding/scrollbar
-      setContainerWidth((prev) => (Math.abs(prev - w) > 1 ? Math.max(w, 100) : prev));
+      const padding = window.innerWidth < 640 ? 8 : 24;
+      const w = Math.floor(entry.contentRect.width) - padding;
+      setContainerWidth((prev) =>
+        Math.abs(prev - w) > 1 ? Math.max(w, 100) : prev
+      );
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pdfFile]);
+  }, [pdfFile, error, pdfDoc]);
 
-  // 3) Render the current page whenever doc / page / zoom / width changes
   useEffect(() => {
     if (!pdfDoc || !containerWidth || !pagesMeta[pageNumber - 1]) return;
 
@@ -100,8 +101,7 @@ export default function PDFViewer() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // sharp rendering on retina screens; CSS size stays = viewport size
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${viewport.width}px`;
@@ -117,7 +117,6 @@ export default function PDFViewer() {
         await task.promise;
         if (cancelled) return;
 
-        // fields use CSS pixels, so meta uses viewport (CSS) size
         setPdfMeta({
           width: viewport.width,
           height: viewport.height,
@@ -145,7 +144,7 @@ export default function PDFViewer() {
 
   if (!pdfFile) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-gray-500">
+      <div className="flex items-center justify-center h-full min-h-[200px] text-sm text-gray-500 text-center px-4">
         Upload a PDF to begin
       </div>
     );
@@ -153,16 +152,16 @@ export default function PDFViewer() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-sm text-red-600 text-center px-4">
+      <div className="flex items-center justify-center h-full min-h-[200px] text-sm text-red-600 text-center px-4">
         {error}
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <div className="text-sm">
+    <div className="w-full h-full flex flex-col gap-2 min-w-0">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="text-xs sm:text-sm whitespace-nowrap">
           Page {pageNumber} / {totalPages || "…"}
         </div>
 
@@ -170,26 +169,27 @@ export default function PDFViewer() {
           <button
             onClick={() => goTo(pageNumber - 1)}
             disabled={pageNumber <= 1}
-            className="px-2 py-1 bg-white shadow-sm disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-2 sm:px-2 sm:py-1 text-sm bg-white shadow-sm border border-gray-200 active:bg-gray-100 disabled:opacity-40"
           >
-            Prev
+            <ChevronLeft className="w-4 h-4 sm:hidden" />
+            <span className="hidden sm:inline">Prev</span>
           </button>
           <button
             onClick={() => goTo(pageNumber + 1)}
             disabled={!totalPages || pageNumber >= totalPages}
-            className="px-2 py-1 bg-white shadow-sm disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-2 sm:px-2 sm:py-1 text-sm bg-white shadow-sm border border-gray-200 active:bg-gray-100 disabled:opacity-40"
           >
-            Next
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight className="w-4 h-4 sm:hidden" />
           </button>
         </div>
       </div>
 
       <div
         ref={containerRef}
-        className="relative w-full flex-1 min-h-0 bg-gray-50 flex items-start justify-center overflow-auto pt-2"
+        className="relative w-full flex-1 min-h-0 bg-gray-50 flex items-start overflow-auto overscroll-contain pt-2"
       >
-        {/* wrapper is exactly canvas-sized so FieldLayer (absolute inset-0) lines up */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 mx-auto">
           <canvas ref={canvasRef} className="block shadow-lg" />
           <FieldLayer />
         </div>
